@@ -1,0 +1,7 @@
+streamlit
+sqlalchemy
+faker
+pandas
+pyyaml
+fpdf
+python-docx

@@ -1,0 +1,69 @@
+# ============================================================
+# Master Pipeline Configuration
+# Project : Configuration-Driven SQLite Data Generation
+# Version : 1.0.0
+# ============================================================
+
+pipeline:
+  database: data/generated.db       # Output SQLite database path
+  seed: 42                          # Global random seed for reproducibility
+  batch_size: 5000                  # Records committed per transaction
+
+tables:
+
+  - name: user_profiles
+    target_records: 100000
+    description: "Synthetic user profile records for testing and development."
+
+    fields:
+
+      - name: id
+        sql_type: INTEGER
+        primary_key: true
+        autoincrement: true
+
+      - name: first_name
+        sql_type: VARCHAR(50)
+        faker_provider: first_name
+        nullable: false
+
+      - name: last_name
+        sql_type: VARCHAR(50)
+        faker_provider: last_name
+        nullable: false
+
+      - name: age
+        sql_type: INTEGER
+        faker_provider: random_int
+        faker_args:
+          min: 18
+          max: 75
+        nullable: false
+
+      - name: email
+        sql_type: VARCHAR(120)
+        faker_provider: unique.email
+        unique: true
+        nullable: false
+
+      - name: mobile
+        sql_type: VARCHAR(20)
+        faker_provider: phone_number
+        unique: true
+        nullable: false
+
+      - name: expertise
+        sql_type: VARCHAR(100)
+        faker_provider: job
+        nullable: false
+
+      - name: profile_type
+        sql_type: VARCHAR(20)
+        faker_provider: random_element
+        faker_args:
+          elements:
+            - admin
+            - standard
+            - premium
+            - guest
+        nullable: false

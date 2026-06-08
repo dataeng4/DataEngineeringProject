@@ -73,10 +73,3 @@ DataEngineeringProject/
 └── README.md              # Project documentation
 
 
-### Step 3: Lock it into Version Control
-Once you save the `README.md` file in VS Code, open your terminal and run these commands to track this final addition in Git:
-
-1. `git add README.md`
-2. `git commit -m "docs: add comprehensive project README"`
-
-With that file locked in, your repository is 100% complete and ready to be shown to the wo

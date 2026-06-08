@@ -369,10 +369,17 @@ def generate_biodata_pdf(row: pd.Series) -> bytes:
 
 def generate_word(profile_data):
     doc = Document()
-    doc.add_heading(f"Biodata: {profile_data['first_name']} {profile_data['last_name']}", level=1)
+    
+    # Safely grab the names by checking both the UI format and the Database format
+    f_name = profile_data.get('First Name', profile_data.get('first_name', ''))
+    l_name = profile_data.get('Last Name', profile_data.get('last_name', ''))
+    
+    doc.add_heading(f"Biodata: {f_name} {l_name}", level=1)
     
     for key, value in profile_data.items():
-        doc.add_paragraph(f"{str(key).title().replace('_', ' ')}: {value}")
+        # This ensures the keys always print nicely in the Word document
+        clean_key = str(key).title().replace('_', ' ')
+        doc.add_paragraph(f"{clean_key}: {value}")
         
     buffer = BytesIO()
     doc.save(buffer)

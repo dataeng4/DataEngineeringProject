@@ -1,10 +1,12 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from database import get_engine
 
 def optimize_database():
-    engine = create_engine('sqlite:///project_data.db')
+    # Dynamically grab whichever engine is active in the .env file
+    engine = get_engine()
     
     with engine.connect() as conn:
-        print("Building B-Tree Indexes...")
+        print(f"Building B-Tree Indexes on {engine.name.upper()}...")
         
         # Index for Name Searches
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_name ON user_profiles (first_name, last_name);"))

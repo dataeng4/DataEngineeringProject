@@ -5,3 +5,5 @@ pandas
 pyyaml
 fpdf
 python-docx
+psycopg2-binary
+python-dotenv

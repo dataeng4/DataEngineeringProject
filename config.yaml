@@ -47,7 +47,7 @@ tables:
         nullable: false
 
       - name: mobile
-        sql_type: VARCHAR(20)
+        sql_type: VARCHAR(50)
         faker_provider: phone_number
         unique: true
         nullable: false

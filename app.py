@@ -158,64 +158,13 @@ st.markdown(
 )
 
 # ============================================================
-# Master YAML Config (inline mirror — swap with yaml.safe_load
-# of your config file if preferred)
+# Master YAML Config (Dynamically loaded from file)
 # ============================================================
-MASTER_YAML = """
-pipeline:
-  database: data/generated.db
-  seed: 42
-  batch_size: 5000
+import yaml
 
-tables:
-  - name: user_profiles
-    target_records: 100000
-    fields:
-      - name: first_name
-        sql_type: VARCHAR(50)
-        label: First Name
-        widget: text_input
-        nullable: false
-      - name: last_name
-        sql_type: VARCHAR(50)
-        label: Last Name
-        widget: text_input
-        nullable: false
-      - name: age
-        sql_type: INTEGER
-        label: Age
-        widget: number_input
-        min: 18
-        max: 75
-        nullable: false
-      - name: email
-        sql_type: VARCHAR(120)
-        label: Email Address
-        widget: text_input
-        unique: true
-        nullable: false
-      - name: mobile
-        sql_type: VARCHAR(20)
-        label: Mobile Number
-        widget: text_input
-        unique: true
-        nullable: false
-      - name: expertise
-        sql_type: VARCHAR(100)
-        label: Expertise / Job Title
-        widget: text_input
-        nullable: false
-      - name: profile_type
-        sql_type: VARCHAR(20)
-        label: Profile Type
-        widget: selectbox
-        options:
-          - admin
-          - standard
-          - premium
-          - guest
-        nullable: false
-"""
+# Read the live blueprint directly from the file
+with open("config.yaml", "r") as fh:
+    MASTER_YAML = fh.read()
 
 config = yaml.safe_load(MASTER_YAML)
 table_cfg = next(t for t in config["tables"] if t["name"] == "user_profiles")

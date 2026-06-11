@@ -197,7 +197,7 @@ def run_pipeline(config_path: str = CONFIG_PATH) -> None:
     for batch_id, batch in enumerate(batches, start=1):
         # ── Log RUNNING ──────────────────────────────────────
         log_pipeline_status(
-            batch_id=batch_id,
+            batch_id=str(batch_id),
             records_processed=0,
             status="RUNNING",
             error_message=None,
@@ -212,7 +212,7 @@ def run_pipeline(config_path: str = CONFIG_PATH) -> None:
 
             # ── Log SUCCESS ──────────────────────────────────
             log_pipeline_status(
-                batch_id=batch_id,
+                batch_id=str(batch_id),
                 records_processed=len(batch),
                 status="SUCCESS",
                 error_message=None,
@@ -234,7 +234,7 @@ def run_pipeline(config_path: str = CONFIG_PATH) -> None:
 
             # ── Log FAILED ───────────────────────────────────
             log_pipeline_status(
-                batch_id=batch_id,
+                batch_id=str(batch_id),
                 records_processed=0,
                 status="FAILED",
                 error_message=error_msg,

@@ -30,17 +30,37 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 # ─────────────────────────────────────────────
 # 1. Engine & Session Factory
 # ─────────────────────────────────────────────
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite:///project_data.db"
+load_dotenv()
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Required for SQLite in multi-threaded use
-    echo=False,                                  # Set True to log generated SQL
-)
+def get_engine():
+    """Universal Engine Factory driven by the .env file."""
+    db_type = os.getenv("DB_TYPE", "sqlite").lower()
+    
+    if db_type == "postgres":
+        db_pass = os.getenv("DB_PASSWORD")
+        return create_engine(f'postgresql+psycopg2://postgres:{db_pass}@localhost:5432/project_data', echo=False)
+        
+    elif db_type == "aws":
+        db_pass = os.getenv("DB_PASSWORD")
+        aws_host = os.getenv("AWS_HOST")
+        return create_engine(f'postgresql+psycopg2://postgres:{db_pass}@{aws_host}:5432/project_data', echo=False)
+        
+    else:
+        # Fallback to local SQLite (requires check_same_thread)
+        return create_engine(
+            'sqlite:///project_data.db', 
+            connect_args={"check_same_thread": False}, 
+            echo=False
+        )
 
+# Initialize the global engine and session using the factory
+engine = get_engine()
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-
 
 # ─────────────────────────────────────────────
 # 2. Declarative Base
@@ -356,6 +376,3 @@ if __name__ == "__main__":
     print("Done.")
 
 
-def get_engine():
-    from sqlalchemy import create_engine
-    return create_engine('sqlite:///project_data.db')

@@ -417,87 +417,77 @@ with tab_dash:
 # ──────────────────────────────────────────────────────────────────────────────
 # TAB 2 — DATA ENTRY FORM (YAML-driven)
 # ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# TAB 2 — DATA ENTRY FORM (Strict Manual Validation)
+# ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# TAB 2 — DATA ENTRY FORM (Strict UI Constraints)
+# ──────────────────────────────────────────────────────────────────────────────
 with tab_form:
-    st.markdown("#### New Profile Entry")
-    st.caption("Form fields are generated dynamically from the master YAML configuration.")
+    st.markdown("#### 📝 Manual Data Entry Studio")
+    st.caption("Database ID and timestamps are auto-generated. Inputs are strictly constrained.")
 
-    with st.form("user_entry_form", clear_on_submit=True):
-        collected: dict = {}
-        cols_left, cols_right = st.columns(2)
-        col_toggle = True  # alternate columns for a tidy two-column layout
+    with st.form("manual_entry_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            first_name = st.text_input("First Name").strip()
+            last_name = st.text_input("Last Name").strip()
+            # UI Constraint: Number spinner physically prevents text and out-of-bounds numbers
+            age = st.number_input("Age", min_value=18, max_value=75, value=25, step=1)
+            # UI Constraint: Dropdown prevents unauthorized roles and spelling errors
+            profile_type = st.selectbox("Profile Type", ["standard", "admin", "premium", "guest"])
+            
+        with col2:
+            email = st.text_input("Email Address").strip()
+            mobile = st.text_input("Mobile Number").strip()
+            expertise = st.text_input("Expertise").strip()
 
-        for field in fields:
-            fname = field["name"]
-            label = field.get("label", fname.replace("_", " ").title())
-            widget = field.get("widget", "text_input")
-            nullable = field.get("nullable", True)
+        # Updated to a more user-friendly button text
+        submit_btn = st.form_submit_button("➕ Submit Profile")
 
-            # Choose column
-            target_col = cols_left if col_toggle else cols_right
-            col_toggle = not col_toggle
+    if submit_btn:
+        errors = []
 
-            with target_col:
-                if widget == "text_input":
-                    val = st.text_input(
-                        label,
-                        placeholder=f"Enter {label.lower()}…",
-                        key=f"form_{fname}",
-                    )
-                    collected[fname] = val.strip() if val else None
+        # --- Rule A: Required Fields Check ---
+        # (Notice Age and Profile Type are removed from this check, because the UI guarantees they have a value!)
+        if not all([first_name, last_name, email, mobile, expertise]):
+            errors.append("All text fields are mandatory. Please fill in all blank inputs.")
 
-                elif widget == "number_input":
-                    val = st.number_input(
-                        label,
-                        min_value=field.get("min", 0),
-                        max_value=field.get("max", 999),
-                        step=1,
-                        key=f"form_{fname}",
-                    )
-                    collected[fname] = int(val)
+        # --- Rule B: Silent Email Pattern Matching ---
+        email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if email and not re.match(email_regex, email):
+            errors.append("Invalid email address format (e.g., user@domain.com).")
 
-                elif widget == "selectbox":
-                    options = field.get("options", [])
-                    val = st.selectbox(label, options=options, key=f"form_{fname}")
-                    collected[fname] = val
+        # --- Rule C: Silent 10-Digit Mobile Check ---
+        clean_mobile = re.sub(r"[-+\s()]", "", mobile)
+        if mobile and (not clean_mobile.isdigit() or len(clean_mobile) != 10):
+            errors.append("Mobile number must consist of exactly 10 numeric digits.")
 
-        st.markdown("")
-        submitted = st.form_submit_button("➕  Submit Profile", use_container_width=True)
-
-    if submitted:
-        # ── Validation ────────────────────────────────────────
-        missing = [
-            field.get("label", f["name"])
-            for field in fields
-            if not field.get("nullable", True)
-            for f in [field]
-            if not collected.get(field["name"])
-            and field.get("widget", "text_input") == "text_input"
-        ]
-        if missing:
-            st.error(f"Required field(s) missing: {', '.join(missing)}")
+        # --- Execution or Feedback Gate ---
+        if errors:
+            for error in errors:
+                st.error(f"❌ {error}")
         else:
-            email = collected.get("email", "")
-            mobile = collected.get("mobile", "")
-
-            # ── Strict Regex Validation ───────────────────────────
-            email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-            mobile_pattern = r"^\d{10}$" # Forces exactly 10 numeric digits
-
-            if not re.match(email_pattern, email):
-                st.error("⚠️ Invalid Email Format! Please include an '@' and domain.")
-            elif not re.match(mobile_pattern, mobile):
-                st.error("⚠️ Invalid Mobile! Please enter exactly 10 digits without text.")
-            elif check_duplicate(email, mobile):
-                st.error("⚠️ Email or Mobile already exists in the database!")
+            is_duplicate = check_duplicate(email, clean_mobile)
+            
+            if is_duplicate:
+                st.warning("⚠️ Database Reject: A record with this email or mobile number already exists.")
             else:
                 try:
-                    collected["created_at"] = datetime.datetime.now()
-                    insert_user(engine, collected)
+                    new_record = {
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "age": age, # Passes the integer directly from the number_input
+                        "email": email,
+                        "mobile": clean_mobile,
+                        "expertise": expertise,
+                        "profile_type": profile_type.lower(), # Passes the dropdown choice
+                        "created_at": datetime.datetime.now()
+                    }
+                    insert_user(engine, new_record)
                     total_new, _, _ = fetch_metrics(engine)
-                    st.success(
-                        f"✅  Profile created successfully! "
-                        f"Total records: **{total_new:,}**"
-                    )
+                    st.success(f"🚀 Success: {first_name} {last_name} committed! Total records: {total_new:,}")
                     st.balloons()
                 except Exception as exc:
                     st.error(f"Database error: {exc}")

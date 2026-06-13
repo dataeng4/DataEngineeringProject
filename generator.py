@@ -176,7 +176,6 @@ def run_pipeline(config_path: str = CONFIG_PATH) -> None:
 
     # ── 2. Initialise Faker ────────────────────────────────────
     fake = Faker()
-    Faker.seed(seed)
 
     # ── 3. Pre-generate all records ────────────────────────────
     t0 = time.perf_counter()

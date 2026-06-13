@@ -1,0 +1,4 @@
+__pycache__/
+.env
+project_data.db
+data/

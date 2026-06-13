@@ -7,3 +7,6 @@ fpdf
 python-docx
 psycopg2-binary
 python-dotenv
+boto3
+pyarrow
+fastparquet

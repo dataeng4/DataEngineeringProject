@@ -25,7 +25,11 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import declarative_base, Session, sessionmaker
+
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 
 # ─────────────────────────────────────────────
 # 1. Engine & Session Factory
@@ -43,11 +47,14 @@ def get_engine():
     
     if db_type == "postgres":
         db_pass = os.getenv("DB_PASSWORD")
-        return create_engine(f'postgresql+psycopg2://postgres:{db_pass}@localhost:5432/project_data', echo=False)
+        # Read the host from the environment, default to localhost for local testing
+        db_host = os.getenv("DB_HOST", "localhost") 
+        return create_engine(f'postgresql+psycopg2://postgres:{db_pass}@{db_host}:5432/project_data', echo=False)
         
     elif db_type == "aws":
         db_pass = os.getenv("DB_PASSWORD")
-        aws_host = os.getenv("AWS_HOST")
+        # Add fallback to 'postgres_db' so Tasks 1 & 3 don't crash in Airflow
+        aws_host = os.getenv("AWS_HOST", "postgres_db") 
         return create_engine(f'postgresql+psycopg2://postgres:{db_pass}@{aws_host}:5432/project_data', echo=False)
         
     else:
@@ -66,8 +73,7 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 # 2. Declarative Base
 # ─────────────────────────────────────────────
 
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 
 # ─────────────────────────────────────────────
@@ -263,46 +269,70 @@ def check_duplicate(email: str, mobile: str) -> bool:
 
 
 def insert_profiles_batch(data_list: list[dict]) -> int:
-    """
-    Bulk-insert a list of profile dictionaries into user_profiles.
-
-    Uses ``Session.bulk_insert_mappings`` for maximum throughput —
-    this bypasses ORM overhead while still honouring the column
-    definitions declared on the model.
-
-    Args:
-        data_list: A list of dicts whose keys match the column names
-                   of user_profiles (excluding 'id' and 'created_at',
-                   which are auto-populated).
-
-    Returns:
-        The number of records successfully inserted.
-
-    Raises:
-        SQLAlchemyError: Propagated on any database error; the
-        transaction is rolled back automatically by the context manager.
-
-    Example::
-
-        insert_profiles_batch([
-            {"first_name": "Ada", "last_name": "Lovelace",
-             "age": 36, "email": "ada@example.com",
-             "mobile": "+44-700-0000001", "expertise": "Mathematics",
-             "profile_type": "admin"},
-        ])
-    """
+    """Bulk-insert profile dictionaries or upload to AWS S3 Data Lake."""
     if not data_list:
         return 0
 
-    # Stamp every record with the current UTC time
     now = datetime.now(timezone.utc)
     stamped = [{**row, "created_at": now} for row in data_list]
+    
+    db_type = os.getenv("DB_TYPE", "sqlite").lower()
 
-    with SessionLocal() as session:
-        session.bulk_insert_mappings(UserProfiles, stamped)  # type: ignore[arg-type]
-        session.commit()
+    # ── THE CLOUD DATA LAKEHOUSE ROUTE (AWS S3) ──────────────────────
+    if db_type == "aws":
+        import pandas as pd
+        import boto3
+        import io
+        import uuid
+        import pyarrow as pa
+        import pyarrow.parquet as pq
 
-    return len(stamped)
+        # 1. Convert the batch dictionary to a Pandas DataFrame
+        df = pd.DataFrame(stamped)
+        
+        # 2. Convert to PyArrow Table
+        table = pa.Table.from_pandas(df)
+        
+        # 3. The Data Contract Fix: Safely cast ALL timestamps to microseconds
+        #    This permanently resolves the Databricks TIMESTAMP(NANOS) crash
+        new_schema = pa.schema([
+            pa.field(f.name, pa.timestamp('us', tz=f.type.tz)) if pa.types.is_timestamp(f.type) else f
+            for f in table.schema
+        ])
+        table = table.cast(new_schema)
+        
+        # 4. Compress the safely-cast table into Parquet
+        parquet_buffer = io.BytesIO()
+        pq.write_table(table, parquet_buffer)
+        parquet_buffer.seek(0)
+        
+        # 5. Generate partition path and upload to S3
+        batch_id = str(uuid.uuid4())[:8]
+        timestamp_str = now.strftime('%Y%m%d_%H%M%S')
+        file_key = f"bronze/user_profiles/batch_{timestamp_str}_{batch_id}.parquet"
+        
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.getenv("AWS_DEFAULT_REGION")
+        )
+        s3_client.upload_fileobj(parquet_buffer, os.getenv("AWS_BUCKET_NAME"), file_key)
+        
+        return len(stamped)
+    # ── THE LOCAL RELATIONAL ROUTE (PostgreSQL / SQLite) ──────────────
+    else:
+        with engine.begin() as conn:
+            if db_type == "postgres":
+                stmt = pg_insert(UserProfiles).values(stamped)
+                upsert_stmt = stmt.on_conflict_do_nothing()
+                conn.execute(upsert_stmt)
+            else:
+                stmt = sqlite_insert(UserProfiles).values(stamped)
+                upsert_stmt = stmt.on_conflict_do_nothing()
+                conn.execute(upsert_stmt)
+
+        return len(stamped)
 
 
 def log_pipeline_status(

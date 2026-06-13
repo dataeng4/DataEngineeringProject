@@ -1,0 +1,8 @@
+# 1. Use the official Apache Airflow image
+FROM apache/airflow:2.9.1-python3.10
+
+# 2. Copy your project dependencies
+COPY requirements.txt /requirements.txt
+
+# 3. Install the dependencies into the Airflow environment
+RUN pip install --no-cache-dir -r /requirements.txt

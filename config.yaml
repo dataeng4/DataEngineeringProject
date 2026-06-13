@@ -6,7 +6,7 @@
 
 pipeline:
   database: data/generated.db       # Output SQLite database path
-  seed: 42                          # Global random seed for reproducibility
+  seed: 99                          # Global random seed for reproducibility
   batch_size: 5000                  # Records committed per transaction
 
 tables:

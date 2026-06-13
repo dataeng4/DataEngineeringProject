@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # ── Container 1: The Database (Storage) ─────────────────────────
+  postgres_db:
+    image: postgres:16
+    container_name: enterprise_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: project_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  # ── Container 2: Your Data Studio (Frontend) ────────────────────
+  data_studio:
+    build: .
+    container_name: enterprise_ui
+    ports:
+      - "8501:8501"
+    environment:
+      - DB_TYPE=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=postgres_db
+    depends_on:
+      - postgres_db
+
+  # ── Container 3: Apache Airflow (Orchestrator) ──────────────────
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    container_name: enterprise_orchestrator
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - DB_TYPE=${DB_TYPE}          # 1. Now reads dynamically from your .env file
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=postgres_db
+      # 2. Inject AWS Vault Keys into the Orchestrator
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - .:/opt/airflow/project
+    command: standalone
+    depends_on:
+      - postgres_db
+
+volumes:
+  pg_data:
